@@ -5,6 +5,10 @@ This module provides a VideoProcessor that iterates over images on disk
 (simulating a camera feed) and applies lightweight anomaly detection using
 adaptive thresholding.  In production this would be replaced by an NVIDIA
 NIM vision model, but this heuristic is sufficient for the demo.
+
+When processing images from the NEU-DET dataset, the processor also
+leverages the ground-truth defect type encoded in the filename and draws
+bounding boxes from the XML annotations.
 """
 
 import os
@@ -14,6 +18,8 @@ from typing import Generator, Optional
 
 import cv2
 import numpy as np
+
+from detection.neu_det_loader import NEUDatasetLoader, defect_type_from_path, NEU_DEFECT_TYPES
 
 
 class VideoProcessor:
@@ -27,6 +33,18 @@ class VideoProcessor:
     def __init__(self, image_dir: str) -> None:
         self.image_dir = image_dir
         self._paths: list[str] = self.get_image_paths()
+        # Lazily initialise the NEU-DET loader when NEU-DET images are present
+        self._neu_loader: Optional[NEUDatasetLoader] = None
+        self._init_neu_loader()
+
+    def _init_neu_loader(self) -> None:
+        """Try to initialise a NEUDatasetLoader from the image directory."""
+        from config import NEU_DET_TRAIN_IMAGES, NEU_DET_TRAIN_ANNOTATIONS
+        if os.path.isdir(NEU_DET_TRAIN_IMAGES):
+            self._neu_loader = NEUDatasetLoader(
+                images_dir=NEU_DET_TRAIN_IMAGES,
+                annotations_dir=NEU_DET_TRAIN_ANNOTATIONS,
+            )
 
     # ── Image discovery ─────────────────────────────────────────────────
 
@@ -153,3 +171,55 @@ class VideoProcessor:
             "anomaly_percentage": round(anomaly_pct, 2),
             "defect_type": defect_type,
         }
+
+    # ── NEU-DET–aware detection ─────────────────────────────────────────
+
+    def is_neu_det_image(self, image_path: str) -> bool:
+        """Return True if *image_path* belongs to the NEU-DET dataset."""
+        return "NEU-DET" in image_path
+
+    def detect_with_neu_annotations(
+        self, frame: np.ndarray, image_path: str
+    ) -> dict:
+        """Enhanced detection that uses NEU-DET ground-truth when available.
+
+        Falls back to ``detect_defect_simple`` for non-NEU-DET images.
+
+        Returns
+        -------
+        dict
+            ``has_defect``          – bool
+            ``confidence``          – float [0, 1]
+            ``anomaly_percentage``  – float
+            ``defect_type``         – str | None
+            ``ground_truth``        – bool (True if label came from NEU-DET)
+            ``annotation``          – NEUAnnotation | None
+            ``annotated_frame``     – np.ndarray | None (frame with bboxes drawn)
+        """
+        if self.is_neu_det_image(image_path) and self._neu_loader is not None:
+            defect_type = defect_type_from_path(image_path)
+            annotation = self._neu_loader.get_annotation(image_path)
+
+            # Still run the heuristic to get anomaly percentage
+            heuristic = self.detect_defect_simple(frame)
+
+            annotated_frame = None
+            if annotation:
+                annotated_frame = self._neu_loader.draw_annotations(frame, annotation)
+
+            return {
+                "has_defect": True,  # NEU-DET images are all defective
+                "confidence": 1.0,   # ground-truth label
+                "anomaly_percentage": heuristic["anomaly_percentage"],
+                "defect_type": defect_type,
+                "ground_truth": True,
+                "annotation": annotation,
+                "annotated_frame": annotated_frame,
+            }
+
+        # Fallback for non-NEU-DET images
+        result = self.detect_defect_simple(frame)
+        result["ground_truth"] = False
+        result["annotation"] = None
+        result["annotated_frame"] = None
+        return result
