@@ -37,6 +37,7 @@ from db.database import (
 )
 from detection.defect_simulator import DefectSimulator
 from detection.video_processor import VideoProcessor
+from detection.neu_det_loader import NEUDatasetLoader
 from rag.generator import query_copilot
 
 # ── Page configuration ──────────────────────────────────────────────────────
@@ -217,8 +218,8 @@ with st.sidebar:
 #  MAIN AREA — TABS
 # ═══════════════════════════════════════════════════════════════════════════
 
-tab_copilot, tab_dashboard, tab_video = st.tabs(
-    ["🔍 Copilot Query", "📈 Dashboard", "🎥 Video Feed"]
+tab_copilot, tab_dashboard, tab_video, tab_neudet = st.tabs(
+    ["🔍 Copilot Query", "📈 Dashboard", "🎥 Video Feed", "🔬 NEU-DET Dataset"]
 )
 
 # ── Tab 1: Copilot Query ────────────────────────────────────────────────────
@@ -411,17 +412,21 @@ with tab_video:
                 frame = cv2.imread(current_path)
 
                 if frame is not None:
-                    # Run detection
-                    detection = vp.detect_defect_simple(frame)
+                    # Run NEU-DET–aware detection
+                    detection = vp.detect_with_neu_annotations(frame, current_path)
 
-                    # Draw red border if defect detected
-                    display_frame = frame.copy()
-                    if detection["has_defect"]:
+                    # Use annotated frame (with bounding boxes) if available
+                    if detection.get("annotated_frame") is not None:
+                        display_frame = detection["annotated_frame"]
+                    elif detection["has_defect"]:
+                        display_frame = frame.copy()
                         cv2.rectangle(
                             display_frame, (0, 0),
                             (display_frame.shape[1] - 1, display_frame.shape[0] - 1),
                             (0, 0, 255), 5,
                         )
+                    else:
+                        display_frame = frame
 
                     rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
                     pil_img = Image.fromarray(rgb)
@@ -431,16 +436,21 @@ with tab_video:
                         width="stretch",
                     )
                 else:
-                    detection = {"has_defect": False, "confidence": 0, "anomaly_percentage": 0, "defect_type": None}
+                    detection = {"has_defect": False, "confidence": 0, "anomaly_percentage": 0, "defect_type": None, "ground_truth": False}
                     st.warning(f"Could not read image: {current_path}")
 
             with col_info:
                 st.markdown("**Detection Result:**")
                 if detection["has_defect"]:
                     st.error("⚠️ DEFECT DETECTED")
-                    st.metric("Defect Type", detection["defect_type"])
+                    st.metric("Defect Type", (detection["defect_type"] or "unknown").replace("_", " ").title())
                     st.metric("Confidence", f"{detection['confidence']:.1%}")
                     st.metric("Anomaly Area", f"{detection['anomaly_percentage']:.1f}%")
+                    if detection.get("ground_truth"):
+                        st.info("🏷️ Label: NEU-DET ground truth")
+                    annotation = detection.get("annotation")
+                    if annotation and annotation.boxes:
+                        st.caption(f"📦 {len(annotation.boxes)} bounding box(es)")
                 else:
                     st.success("✅ No defect")
                     st.metric("Anomaly Area", f"{detection['anomaly_percentage']:.1f}%")
@@ -495,3 +505,130 @@ with tab_video:
         st.info(
             "No simulation events yet. Click **Run Defect Simulation** in the sidebar."
         )
+
+# ── Tab 4: NEU-DET Dataset Browser ─────────────────────────────────────────
+with tab_neudet:
+    st.subheader("🔬 NEU Surface Defect Database Browser")
+    st.caption(
+        "Browse the NEU-DET dataset by defect category. "
+        "Images are shown with ground-truth bounding-box annotations."
+    )
+
+    from config import NEU_DET_TRAIN_IMAGES, NEU_DET_TRAIN_ANNOTATIONS
+
+    if not os.path.isdir(NEU_DET_TRAIN_IMAGES):
+        st.warning(
+            "NEU-DET dataset not found. Expected at "
+            "`data/sample_images/NEU-DET/train/images/`."
+        )
+    else:
+        @st.cache_resource
+        def _get_neu_loader():
+            return NEUDatasetLoader(NEU_DET_TRAIN_IMAGES, NEU_DET_TRAIN_ANNOTATIONS)
+
+        neu = _get_neu_loader()
+        stats = neu.get_dataset_stats()
+
+        # ── Dataset overview metrics ────────────────────────────────────
+        st.markdown("#### 📊 Dataset Overview")
+        overview_cols = st.columns(3)
+        overview_cols[0].metric("Total Images", stats["total_images"])
+        overview_cols[1].metric("Defect Categories", stats["categories"])
+        overview_cols[2].metric("Annotations Loaded", stats["total_annotations"])
+
+        # Per-category counts
+        cat_counts = stats["category_counts"]
+        cat_df = pd.DataFrame(
+            [{"Category": k.replace("_", " ").title(), "Count": v}
+             for k, v in cat_counts.items()]
+        )
+        st.bar_chart(cat_df, x="Category", y="Count")
+
+        st.divider()
+
+        # ── Category browser ────────────────────────────────────────────
+        st.markdown("#### 🖼️ Browse by Category")
+        selected_cat = st.selectbox(
+            "Defect category",
+            neu.categories,
+            format_func=lambda c: f"{c.replace('_', ' ').title()} ({len(neu.images_for_category(c))} images)",
+        )
+
+        cat_images = neu.images_for_category(selected_cat)
+
+        if "neu_browse_index" not in st.session_state:
+            st.session_state.neu_browse_index = 0
+
+        if cat_images:
+            nav_col1, nav_col2, nav_col3 = st.columns([1, 3, 1])
+            with nav_col1:
+                if st.button("⏮️ Prev", key="neu_prev"):
+                    st.session_state.neu_browse_index = max(
+                        0, st.session_state.neu_browse_index - 1
+                    )
+            with nav_col3:
+                if st.button("⏭️ Next", key="neu_next"):
+                    st.session_state.neu_browse_index = min(
+                        len(cat_images) - 1, st.session_state.neu_browse_index + 1
+                    )
+            with nav_col2:
+                idx = st.slider(
+                    "Image index",
+                    0,
+                    len(cat_images) - 1,
+                    st.session_state.neu_browse_index,
+                    key="neu_slider",
+                )
+                st.session_state.neu_browse_index = idx
+
+            img_path = cat_images[st.session_state.neu_browse_index % len(cat_images)]
+            img_frame = cv2.imread(img_path)
+
+            if img_frame is not None:
+                col_original, col_annotated = st.columns(2)
+                annotation = neu.get_annotation(img_path)
+
+                with col_original:
+                    st.markdown("**Original**")
+                    rgb_orig = cv2.cvtColor(img_frame, cv2.COLOR_BGR2RGB)
+                    st.image(Image.fromarray(rgb_orig), width="stretch")
+
+                with col_annotated:
+                    st.markdown("**With Annotations**")
+                    if annotation:
+                        annotated = neu.draw_annotations(img_frame, annotation)
+                        rgb_ann = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+                        st.image(Image.fromarray(rgb_ann), width="stretch")
+
+                        # Annotation details
+                        st.caption(
+                            f"**File:** {annotation.filename}  |  "
+                            f"**Size:** {annotation.width}×{annotation.height}  |  "
+                            f"**Boxes:** {len(annotation.boxes)}"
+                        )
+                        for i, box in enumerate(annotation.boxes):
+                            st.text(
+                                f"  Box {i+1}: [{box.xmin}, {box.ymin}, "
+                                f"{box.xmax}, {box.ymax}] — {box.label}"
+                            )
+                    else:
+                        rgb_orig2 = cv2.cvtColor(img_frame, cv2.COLOR_BGR2RGB)
+                        st.image(Image.fromarray(rgb_orig2), width="stretch")
+                        st.info("No XML annotation found for this image.")
+            else:
+                st.warning(f"Could not read image: {img_path}")
+
+        # ── Grid preview ────────────────────────────────────────────────
+        st.divider()
+        st.markdown("#### 🗂️ Category Grid (first 12 images)")
+        grid_cols = st.columns(4)
+        for i, path in enumerate(cat_images[:12]):
+            col = grid_cols[i % 4]
+            gframe = cv2.imread(path)
+            if gframe is not None:
+                rgb_g = cv2.cvtColor(gframe, cv2.COLOR_BGR2RGB)
+                col.image(
+                    Image.fromarray(rgb_g),
+                    caption=os.path.basename(path),
+                    width="stretch",
+                )
