@@ -6,7 +6,64 @@ An AI-powered manufacturing assistant that ingests simulated production-line vid
 
 <details>
 <summary>Mermaid Diagram Source</summary>
+
+```mermaid
+graph TD
+    subgraph Data_Sources [Data Sources]
+        CSV(Sensor Consumer CSV)
+        Docs(Manufacturing Docs)
+        Imgs(Defect Images)
+        Sim(Defect Simulator)
+    end
+    
+    subgraph Storage_Processing [Processing & Storage]
+        SQLite[(SQLite DB)]
+        FAISS[(FAISS Index)]
+        OpenCV[OpenCV Processor]
+        Split[Text Splitter]
+    end
+    
+    subgraph RAG_Pipeline [RAG Pipeline / NVIDIA NIM]
+        Query[1. Query Defect DB]
+        Context[2. Sensor Context]
+        Embed[3. Embed Query]
+        Retrieve[4. Retrieve Docs]
+        Prompt[5. Build Prompt]
+        LLM[6. LLM Call Llama 3.1]
+    end
+    
+    subgraph UI [Streamlit UI]
+        Copilot[Copilot Query Tab]
+        Dash[Dashboard Tab]
+        Video[Video Feed Tab]
+    end
+    
+    CSV --> SQLite
+    Docs --> Split --> FAISS
+    Imgs --> OpenCV
+    Sim --> CSV
+    
+    SQLite --> Query
+    SQLite --> Context
+    FAISS --> Retrieve
+    
+    Query --> Embed
+    Context --> Embed
+    Embed --> Retrieve --> Prompt --> LLM
+    
+    LLM --> Copilot
+    SQLite --> Dash
+    OpenCV --> Video
+    
+    style Data_Sources fill:#1e3a5f,stroke:#38bdf8,color:#fff
+    style Storage_Processing fill:#1a3c34,stroke:#34d399,color:#fff
+    style RAG_Pipeline fill:#4a1942,stroke:#a78bfa,color:#fff
+    style UI fill:#3b1f0b,stroke:#fb923c,color:#fff
 ```
+</details>
+
+---
+
 ## Prerequisites
 
 | Requirement | Version |
@@ -59,40 +116,12 @@ Place `.md`, `.txt`, or `.pdf` files describing your manufacturing processes, ma
 - `sop_forming_zone.md` — standard operating procedures
 - `coolant_system_specs.txt` — cooling valve specifications
 
-### 6. Add defect images
+### 6. Add defect images (optional)
 
-For the **Video Feed** and **NEU-DET Dataset** tabs, place sample defect images (`.png`, `.jpg`, `.bmp`) into `data/sample_images/`. The NEU Surface Defect Database is natively supported:
+For the **Video Feed** tab, place sample defect images (`.png`, `.jpg`, `.bmp`) into `data/sample_images/`. You can use images from:
 
-#### NEU-DET Dataset (recommended)
-
-Download the [NEU Surface Defect Database](http://faculty.neu.edu.cn/songkechen/zh_CN/zdylm/263270/list/) and extract it so the folder structure looks like:
-
-```
-data/sample_images/NEU-DET/
-├── train/
-│   ├── images/
-│   │   ├── crazing/          # 240 images
-│   │   ├── inclusion/         # 240 images
-│   │   ├── patches/           # 240 images
-│   │   ├── pitted_surface/    # 240 images
-│   │   ├── rolled-in_scale/   # 240 images
-│   │   └── scratches/         # 240 images
-│   └── annotations/           # Pascal-VOC XML files
-└── validation/
-    ├── images/
-    └── annotations/
-```
-
-The application automatically:
-- Parses XML annotations and draws **bounding boxes** on detected defects
-- Extracts the **ground-truth defect type** from filenames (e.g., `crazing_1.jpg` → crazing)
-- Provides a dedicated **NEU-DET Dataset Browser** tab with per-category browsing and statistics
-
-#### Other datasets (optional)
-
-You can also use images from:
 - [MVTec Anomaly Detection Dataset](https://www.mvtec.com/company/research/datasets/mvtec-ad)
-- [Severstal Steel Defect Detection](https://www.kaggle.com/c/severstal-steel-defect-detection)
+- [NEU Surface Defect Database](http://faculty.neu.edu.cn/songkechen/zh_CN/zdylm/263270/list/)
 
 ### 7. Generate synthetic sensor data
 
@@ -149,16 +178,7 @@ Real-time sensor charts:
 
 ### Video Feed Tab
 
-Displays sample images from `data/sample_images/` with anomaly detection overlays. When viewing **NEU-DET images**, the system uses ground-truth labels and draws bounding boxes from the XML annotations. For other images, a heuristic OpenCV-based detector is used. Click **Run Defect Simulation** in the sidebar to start the simulator.
-
-### NEU-DET Dataset Tab
-
-A dedicated browser for the NEU Surface Defect Database:
-- **Dataset overview** — total images, category counts, bar chart
-- **Category browser** — select a defect type (crazing, inclusion, patches, pitted_surface, rolled-in_scale, scratches) and navigate through images
-- **Side-by-side view** — original image vs. annotated image with bounding boxes
-- **Annotation details** — bounding box coordinates and labels
-- **Grid preview** — thumbnail grid of the first 12 images per category
+Displays sample images from `data/sample_images/` with a simple OpenCV-based anomaly detection overlay. Click **Run Defect Simulation** in the sidebar to start the simulator.
 
 ---
 
@@ -190,7 +210,7 @@ A dedicated browser for the NEU Surface Defect Database:
                               ▼
                     ┌──────────────────┐
                     │  Streamlit UI    │
-                    │  (4-tab layout)  │
+                    │  (3-tab layout)  │
                     └──────────────────┘
 ```
 
@@ -242,18 +262,16 @@ manufacturing-copilot/
 ├── requirements.txt
 ├── .env.example
 ├── config.py                       # Environment variables & constants
-├── app.py                          # Streamlit UI (4 tabs)
+├── app.py                          # Streamlit UI (3 tabs)
 ├── setup_rag.py                    # One-time setup: ingest docs + build DB
 ├── generate_sensor_data.py         # Generate synthetic sensor CSV
 ├── detection/
 │   ├── __init__.py
-│   ├── video_processor.py          # OpenCV frame processing + NEU-DET integration
-│   ├── defect_simulator.py         # Replay sensor CSV as event stream
-│   └── neu_det_loader.py           # NEU-DET annotation parser & dataset browser
+│   ├── video_processor.py          # OpenCV frame processing
+│   └── defect_simulator.py         # Replay sensor CSV as event stream
 ├── data/
 │   ├── sensor_data.csv             # (generated)
 │   └── sample_images/              # (user-provided defect images)
-│       └── NEU-DET/                # NEU Surface Defect Database (6 categories)
 ├── docs/                           # (user-provided manufacturing docs)
 ├── db/
 │   ├── __init__.py
@@ -273,5 +291,3 @@ manufacturing-copilot/
 ## License
 
 MIT
-
-
