@@ -291,3 +291,4 @@ manufacturing-copilot/
 ## License
 
 MIT
+
