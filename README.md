@@ -7,63 +7,6 @@ An AI-powered manufacturing assistant that ingests simulated production-line vid
 <details>
 <summary>Mermaid Diagram Source</summary>
 
-```mermaid
-graph TD
-    subgraph Data_Sources [Data Sources]
-        CSV(Sensor Consumer CSV)
-        Docs(Manufacturing Docs)
-        Imgs(Defect Images)
-        Sim(Defect Simulator)
-    end
-    
-    subgraph Storage_Processing [Processing & Storage]
-        SQLite[(SQLite DB)]
-        FAISS[(FAISS Index)]
-        OpenCV[OpenCV Processor]
-        Split[Text Splitter]
-    end
-    
-    subgraph RAG_Pipeline [RAG Pipeline / NVIDIA NIM]
-        Query[1. Query Defect DB]
-        Context[2. Sensor Context]
-        Embed[3. Embed Query]
-        Retrieve[4. Retrieve Docs]
-        Prompt[5. Build Prompt]
-        LLM[6. LLM Call Llama 3.1]
-    end
-    
-    subgraph UI [Streamlit UI]
-        Copilot[Copilot Query Tab]
-        Dash[Dashboard Tab]
-        Video[Video Feed Tab]
-    end
-    
-    CSV --> SQLite
-    Docs --> Split --> FAISS
-    Imgs --> OpenCV
-    Sim --> CSV
-    
-    SQLite --> Query
-    SQLite --> Context
-    FAISS --> Retrieve
-    
-    Query --> Embed
-    Context --> Embed
-    Embed --> Retrieve --> Prompt --> LLM
-    
-    LLM --> Copilot
-    SQLite --> Dash
-    OpenCV --> Video
-    
-    style Data_Sources fill:#1e3a5f,stroke:#38bdf8,color:#fff
-    style Storage_Processing fill:#1a3c34,stroke:#34d399,color:#fff
-    style RAG_Pipeline fill:#4a1942,stroke:#a78bfa,color:#fff
-    style UI fill:#3b1f0b,stroke:#fb923c,color:#fff
-```
-</details>
-
----
-
 ## Prerequisites
 
 | Requirement | Version |
@@ -330,3 +273,4 @@ manufacturing-copilot/
 ## License
 
 MIT
+
