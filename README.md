@@ -6,7 +6,7 @@ An AI-powered manufacturing assistant that ingests simulated production-line vid
 
 <details>
 <summary>Mermaid Diagram Source</summary>
-
+```
 ## Prerequisites
 
 | Requirement | Version |
@@ -273,4 +273,5 @@ manufacturing-copilot/
 ## License
 
 MIT
+
 
