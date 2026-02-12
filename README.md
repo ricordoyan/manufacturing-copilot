@@ -64,31 +64,73 @@ graph TD
 
 ---
 
+## 🚀 Quick Start — Choose How to Run
+
+### Option A: Run in GitHub Codespaces (Easiest)
+
+Click the button below to launch a fully configured cloud dev environment — no local install needed:
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/ricordoyan/manufacturing-copilot/codespaces/new)
+
+Once the Codespace is ready, skip to **Step 3 (Install dependencies)** below.
+
+### Option B: Download ZIP
+
+1. On the GitHub repo page, click the green **`<> Code`** button → **Download ZIP**.
+2. Extract the ZIP to a folder of your choice.
+3. Follow the full **Setup Instructions** below.
+
+### Option C: Clone with Git
+
+```bash
+git clone https://github.com/ricordoyan/manufacturing-copilot.git
+cd manufacturing-copilot
+```
+
+---
+
 ## Prerequisites
 
-| Requirement | Version |
+| Requirement | Version / Notes |
 |---|---|
 | Python | 3.10+ |
-| NVIDIA NIM API key | [Get one here](https://build.nvidia.com/) |
+| NVIDIA NIM API key | See **Step 4** below |
+| Kaggle account | Required to download datasets (free to register) |
 
 ---
 
 ## Setup Instructions
 
-### 1. Clone the repository
+> **Copy-paste friendly!** Every command below can be run directly in your terminal.
+
+### 1. Navigate into the project folder
+
+If you downloaded the ZIP, first extract it, then:
 
 ```bash
-git clone <repo-url>
 cd manufacturing-copilot
 ```
 
-### 2. Create a virtual environment
+### 2. Create & activate a virtual environment
+
+**Windows (PowerShell):**
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+**Windows (Command Prompt):**
+
+```cmd
+python -m venv .venv
+.venv\Scripts\activate.bat
+```
+
+**macOS / Linux:**
 
 ```bash
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# macOS / Linux
+python3 -m venv .venv
 source .venv/bin/activate
 ```
 
@@ -98,32 +140,113 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Configure environment variables
+### 4. Configure the NVIDIA NIM API Key
 
-```bash
-cp .env.example .env
+This project requires an **NVIDIA NIM API key** to power the LLM and embedding calls.
+
+**Option A — Use the API key already included in the repo:**
+
+A `.env` file with a working API key is already included in this repository. You can use it as-is without any changes.
+
+**Option B — Generate your own API key:**
+
+1. Go to [https://build.nvidia.com/](https://build.nvidia.com/) and sign up / log in.
+2. Navigate to any NIM model page and click **"Get API Key"**.
+3. Copy your key.
+4. Open (or create) a `.env` file in the project root and add:
+
+```env
+NVIDIA_API_KEY=nvapi-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
 
-Open `.env` and replace `your_nvidia_api_key_here` with your actual NVIDIA NIM API key.
+> **Note:** If both options are present, the key in your `.env` file will be used.
 
-### 5. Add manufacturing documents
+### 5. Download Datasets from Kaggle
 
-Place `.md`, `.txt`, or `.pdf` files describing your manufacturing processes, maintenance logs, and standard operating procedures into the `docs/` folder. These documents will be chunked, embedded, and indexed so the copilot can reference them when answering operator questions.
+The defect image datasets are **too large to include in this GitHub repository**, so you must download them from Kaggle manually.
 
-**Example docs you might add:**
+> **⚠️ Kaggle Account Required:** If you don't have a Kaggle account, register for free at [https://www.kaggle.com/account/login?phase=startRegisterTab](https://www.kaggle.com/account/login?phase=startRegisterTab) before proceeding.
 
-- `line3_maintenance_log.md` — past incidents and fixes
-- `sop_forming_zone.md` — standard operating procedures
-- `coolant_system_specs.txt` — cooling valve specifications
+#### 5a. Download the NEU Surface Defect Detection Dataset (Required)
 
-### 6. Add defect images (optional)
+1. Go to: [https://www.kaggle.com/datasets/kaustubhdikshit/neu-surface-defect-database](https://www.kaggle.com/datasets/kaustubhdikshit/neu-surface-defect-database)
+2. Click the **"Download"** button to download the ZIP file (e.g., `archive.zip`).
+3. **Move the downloaded ZIP file** into the `data/sample_images/` folder:
 
-For the **Video Feed** tab, place sample defect images (`.png`, `.jpg`, `.bmp`) into `data/sample_images/`. You can use images from:
+**Windows (PowerShell):**
 
-- [MVTec Anomaly Detection Dataset](https://www.mvtec.com/company/research/datasets/mvtec-ad)
-- [NEU Surface Defect Database](http://faculty.neu.edu.cn/songkechen/zh_CN/zdylm/263270/list/)
+```powershell
+# Adjust the source path to wherever your browser saved the file
+Move-Item "$HOME\Downloads\archive.zip" "data\sample_images\archive.zip"
+```
 
-### 7. Generate synthetic sensor data
+**macOS / Linux:**
+
+```bash
+mv ~/Downloads/archive.zip data/sample_images/archive.zip
+```
+
+4. **Unzip the dataset** inside `data/sample_images/`:
+
+**Windows (PowerShell):**
+
+```powershell
+Expand-Archive -Path "data\sample_images\archive.zip" -DestinationPath "data\sample_images\" -Force
+```
+
+**macOS / Linux:**
+
+```bash
+unzip data/sample_images/archive.zip -d data/sample_images/
+```
+
+5. Verify the folder structure looks like this:
+
+```
+data/sample_images/
+├── NEU-DET/
+│   ├── train/
+│   │   ├── images/
+│   │   │   ├── crazing_1.bmp
+│   │   │   ├── inclusion_1.bmp
+│   │   │   ├── patches_1.bmp
+│   │   │   ├── pitted_surface_1.bmp
+│   │   │   ├── rolled-in_scale_1.bmp
+│   │   │   └── scratches_1.bmp
+│   │   │   └── ... (1,800 images total)
+│   │   └── annotations/
+│   │       └── ... (Pascal-VOC XML files)
+│   └── validation/
+│       ├── images/
+│       └── annotations/
+```
+
+#### 5b. Download the Severstal Steel Defect Detection Dataset (Optional)
+
+1. Go to: [https://www.kaggle.com/c/severstal-steel-defect-detection/data](https://www.kaggle.com/c/severstal-steel-defect-detection/data)
+2. Click **"Download All"** to download the ZIP (e.g., `severstal-steel-defect-detection.zip`).
+3. Move and unzip it into `data/sample_images/`:
+
+**Windows (PowerShell):**
+
+```powershell
+Move-Item "$HOME\Downloads\severstal-steel-defect-detection.zip" "data\sample_images\severstal-steel-defect-detection.zip"
+Expand-Archive -Path "data\sample_images\severstal-steel-defect-detection.zip" -DestinationPath "data\sample_images\severstal-steel-defect-detection\" -Force
+```
+
+**macOS / Linux:**
+
+```bash
+mv ~/Downloads/severstal-steel-defect-detection.zip data/sample_images/severstal-steel-defect-detection.zip
+unzip data/sample_images/severstal-steel-defect-detection.zip -d data/sample_images/severstal-steel-defect-detection/
+```
+
+The application automatically:
+- Parses XML annotations and draws **bounding boxes** on detected defects
+- Extracts the **ground-truth defect type** from filenames (e.g., `crazing_1.bmp` → crazing)
+- Provides a dedicated **NEU-DET Dataset Browser** tab with per-category browsing and statistics
+
+### 6. Generate synthetic sensor data
 
 ```bash
 python generate_sensor_data.py
@@ -131,7 +254,7 @@ python generate_sensor_data.py
 
 This creates `data/sensor_data.csv` with 192 rows of realistic sensor readings spanning a full shift (06:00–22:00) on Production Line 3, including a simulated cooling-valve drift incident.
 
-### 8. Run the setup script
+### 7. Run the setup script
 
 ```bash
 python setup_rag.py
@@ -144,7 +267,7 @@ This script:
 - Initialises the SQLite database
 - Populates defect events from the sensor CSV
 
-### 9. Launch the application
+### 8. Launch the application
 
 ```bash
 streamlit run app.py
@@ -178,7 +301,16 @@ Real-time sensor charts:
 
 ### Video Feed Tab
 
-Displays sample images from `data/sample_images/` with a simple OpenCV-based anomaly detection overlay. Click **Run Defect Simulation** in the sidebar to start the simulator.
+Displays sample images from `data/sample_images/` with anomaly detection overlays. When viewing **NEU-DET images**, the system uses ground-truth labels and draws bounding boxes from the XML annotations. For other images, a heuristic OpenCV-based detector is used. Click **Run Defect Simulation** in the sidebar to start the simulator.
+
+### NEU-DET Dataset Tab
+
+A dedicated browser for the NEU Surface Defect Database:
+- **Dataset overview** — total images, category counts, bar chart
+- **Category browser** — select a defect type (crazing, inclusion, patches, pitted_surface, rolled-in_scale, scratches) and navigate through images
+- **Side-by-side view** — original image vs. annotated image with bounding boxes
+- **Annotation details** — bounding box coordinates and labels
+- **Grid preview** — thumbnail grid of the first 12 images per category
 
 ---
 
@@ -210,7 +342,7 @@ Displays sample images from `data/sample_images/` with a simple OpenCV-based ano
                               ▼
                     ┌──────────────────┐
                     │  Streamlit UI    │
-                    │  (3-tab layout)  │
+                    │  (4-tab layout)  │
                     └──────────────────┘
 ```
 
@@ -262,16 +394,18 @@ manufacturing-copilot/
 ├── requirements.txt
 ├── .env.example
 ├── config.py                       # Environment variables & constants
-├── app.py                          # Streamlit UI (3 tabs)
+├── app.py                          # Streamlit UI (4 tabs)
 ├── setup_rag.py                    # One-time setup: ingest docs + build DB
 ├── generate_sensor_data.py         # Generate synthetic sensor CSV
 ├── detection/
 │   ├── __init__.py
-│   ├── video_processor.py          # OpenCV frame processing
-│   └── defect_simulator.py         # Replay sensor CSV as event stream
+│   ├── video_processor.py          # OpenCV frame processing + NEU-DET integration
+│   ├── defect_simulator.py         # Replay sensor CSV as event stream
+│   └── neu_det_loader.py           # NEU-DET annotation parser & dataset browser
 ├── data/
 │   ├── sensor_data.csv             # (generated)
 │   └── sample_images/              # (user-provided defect images)
+│       └── NEU-DET/                # NEU Surface Defect Database (6 categories)
 ├── docs/                           # (user-provided manufacturing docs)
 ├── db/
 │   ├── __init__.py
@@ -291,5 +425,3 @@ manufacturing-copilot/
 ## License
 
 MIT
-
-
