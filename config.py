@@ -25,6 +25,21 @@ DOCS_DIR: str = "docs/"
 SENSOR_DATA_PATH: str = "data/sensor_data.csv"
 SAMPLE_IMAGES_DIR: str = "data/sample_images/"
 
+# ── NEU-DET dataset paths ────────────────────────────────────────────────
+NEU_DET_TRAIN_IMAGES: str = "data/sample_images/NEU-DET/train/images/"
+NEU_DET_TRAIN_ANNOTATIONS: str = "data/sample_images/NEU-DET/train/annotations/"
+NEU_DET_VAL_IMAGES: str = "data/sample_images/NEU-DET/validation/images/"
+NEU_DET_VAL_ANNOTATIONS: str = "data/sample_images/NEU-DET/validation/annotations/"
+
+NEU_DEFECT_TYPES: list[str] = [
+    "crazing",
+    "inclusion",
+    "patches",
+    "pitted_surface",
+    "rolled-in_scale",
+    "scratches",
+]
+
 # ── Sensor thresholds ──────────────────────────────────────────────────────
 # Forming-zone temperature thresholds (°C).
 # WARNING  → operators should be alerted.
