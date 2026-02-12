@@ -1,0 +1,20 @@
+{
+  "name": "Manufacturing Defect Detection Copilot",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "postCreateCommand": "pip install -r requirements.txt && python generate_sensor_data.py",
+  "forwardPorts": [8501],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-toolsai.jupyter"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python"
+      }
+    }
+  },
+  "remoteEnv": {
+    "NVIDIA_API_KEY": "${localEnv:NVIDIA_API_KEY}"
+  }
+}
